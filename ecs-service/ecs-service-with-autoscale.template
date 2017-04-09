@@ -340,6 +340,9 @@ Resources:
         MetricAggregationType: Average
         StepAdjustments:
         - MetricIntervalLowerBound: 0
+          MetricIntervalUpperBound: 30
+          ScalingAdjustment: 1
+        - MetricIntervalLowerBound: 30
           ScalingAdjustment: 3
 
   ServiceScaleDown:
@@ -353,8 +356,8 @@ Resources:
         Cooldown: 60
         MetricAggregationType: Average
         StepAdjustments:
-        - ScalingAdjustment: -2
-          MetricIntervalUpperBound: 0
+        - MetricIntervalLowerBound: 0
+          ScalingAdjustment: -1
 
   ALB500sAlarmScaleUp:
     Type: AWS::CloudWatch::Alarm
