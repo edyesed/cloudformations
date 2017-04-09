@@ -349,7 +349,7 @@ Resources:
       MetricAggregationType: Average
       PolicyType: StepScaling
       StepAdjustments:
-        - MetricIntervalLowerBound: 0
+        - MetricIntervalUpperBound: 0
           ScalingAdjustment: -1
 
 
@@ -379,7 +379,7 @@ Resources:
         AdjustmentType: ChangeInCapacity
         MetricAggregationType: Average
         StepAdjustments:
-        - MetricIntervalLowerBound: 0
+        - MetricIntervalUpperBound: 0
           ScalingAdjustment: -1
 
   ALB500sAlarmScaleUp:
