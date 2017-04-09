@@ -317,6 +317,7 @@ Resources:
               'elasticloadbalancing:Describe*', 'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
               'elasticloadbalancing:RegisterTargets', 'ec2:Describe*', 'ec2:AuthorizeSecurityGroupIngress']
             Resource: '*'
+
   ServiceScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     DependsOn: service
@@ -327,6 +328,30 @@ Resources:
       RoleARN: !GetAtt [AutoscalingRole, Arn]
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
+
+  ASGScaleUp:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ECSAutoScalingGroup
+      EstimatedInstanceWarmup: 90
+      MetricAggregationType: Average
+      PolicyType: StepScaling
+      StepAdjustments:
+        - MetricIntervalLowerBound: 0
+          ScalingAdjustment: 1
+  ASGScaleDown:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ECSAutoScalingGroup
+      EstimatedInstanceWarmup: 90
+      MetricAggregationType: Average
+      PolicyType: StepScaling
+      StepAdjustments:
+        - MetricIntervalLowerBound: 0
+          ScalingAdjustment: -1
+
 
   ServiceScaleUp:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
@@ -387,6 +412,8 @@ Resources:
         - Name: LoadBalancer
           Value: !GetAtt ECSALB.LoadBalancerFullName
       MetricName: RequestCount
+
+
   ALB200sAlarmScaleDown:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -403,6 +430,42 @@ Resources:
           Value: !GetAtt ECSALB.LoadBalancerFullName
       MetricName: RequestCount
 
+  ASGCpuAlarmScaleUp:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '50'
+      ComparisonOperator: GreaterThanThreshold
+      AlarmDescription: Scale the ASG if a 5m average of CPU utilized is greater than 50%
+      Period: '300'
+      AlarmActions: [!Ref 'ASGScaleUp']
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref 'AWS::StackName'
+        - Name: ServiceName
+          Value: !Select [ 1, !Split [ '/', !Ref 'service' ]]
+      MetricName: CPUUtilization
+  ASGCpuAlarmScaleDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '10'
+      ComparisonOperator: LessThanThreshold
+      AlarmDescription: Scale the ASG Down if a 5m average of CPU utilized is less than 10%
+      Period: '300'
+      AlarmActions: [!Ref 'ASGScaleDown']
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref 'AWS::StackName'
+        - Name: ServiceName
+          Value: !Select [ 1, !Split [ '/', !Ref 'service' ]]
+      MetricName: CPUUtilization
+
+ 
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
