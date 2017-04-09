@@ -321,7 +321,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     DependsOn: service
     Properties:
-      MaxCapacity: 2
+      MaxCapacity: 40
       MinCapacity: 1
       ResourceId: !Join ['', [service/, !Ref 'ECSCluster', /, !GetAtt [service, Name]]]
       RoleARN: !GetAtt [AutoscalingRole, Arn]
@@ -336,7 +336,6 @@ Resources:
       ScalingTargetId: !Ref 'ServiceScalingTarget'
       StepScalingPolicyConfiguration:
         AdjustmentType: ChangeInCapacity
-        Cooldown: 60
         MetricAggregationType: Average
         StepAdjustments:
         - MetricIntervalLowerBound: 0
@@ -353,7 +352,6 @@ Resources:
       ScalingTargetId: !Ref 'ServiceScalingTarget'
       StepScalingPolicyConfiguration:
         AdjustmentType: ChangeInCapacity
-        Cooldown: 60
         MetricAggregationType: Average
         StepAdjustments:
         - MetricIntervalLowerBound: 0
@@ -380,6 +378,7 @@ Resources:
       EvaluationPeriods: '1'
       Statistic: Sum
       Threshold: '10'
+      ComparisonOperator: GreaterThanThreshold
       AlarmDescription: Scale up if we get more than 10 hits in any one minute
       Period: '60'
       AlarmActions: [!Ref 'ServiceScaleUp']
@@ -387,7 +386,6 @@ Resources:
       Dimensions:
         - Name: LoadBalancer
           Value: !GetAtt ECSALB.LoadBalancerFullName
-      ComparisonOperator: GreaterThanThreshold
       MetricName: RequestCount
   ALB200sAlarmScaleDown:
     Type: AWS::CloudWatch::Alarm
@@ -395,6 +393,7 @@ Resources:
       EvaluationPeriods: '1'
       Statistic: Sum
       Threshold: '1'
+      ComparisonOperator: LessThanThreshold
       AlarmDescription: Scale down if we less than 1 hits in any one minute
       Period: '60'
       AlarmActions: [!Ref 'ServiceScaleDown']
@@ -402,9 +401,7 @@ Resources:
       Dimensions:
         - Name: LoadBalancer
           Value: !GetAtt ECSALB.LoadBalancerFullName
-      ComparisonOperator: LessThanThreshold
       MetricName: RequestCount
-
 
   EC2Role:
     Type: AWS::IAM::Role
