@@ -2,8 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
   PublicIps:
     Type: String
-    Description: Give instances in the subnets public ips by default
-    Default: false
+    Description: Give instances in the subnets public ips by default, leave this true unless you're using your own VPCs
+    Default: true
     AllowedValues:
       - true
       - false
@@ -188,7 +188,7 @@ Resources:
         Cpu: '10'
         Essential: 'true'
         Image: solsson/http-echo:latest
-        Memory: '300'
+        Memory: '80'
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -327,19 +327,35 @@ Resources:
       RoleARN: !GetAtt [AutoscalingRole, Arn]
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
-  ServiceScalingPolicy:
+
+  ServiceScaleUp:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
-      PolicyName: AStepPolicy
+      PolicyName: ScaleUp
       PolicyType: StepScaling
       ScalingTargetId: !Ref 'ServiceScalingTarget'
       StepScalingPolicyConfiguration:
-        AdjustmentType: PercentChangeInCapacity
+        AdjustmentType: ChangeInCapacity
         Cooldown: 60
         MetricAggregationType: Average
         StepAdjustments:
         - MetricIntervalLowerBound: 0
-          ScalingAdjustment: 200
+          ScalingAdjustment: 3
+
+  ServiceScaleDown:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: ScaleDown
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref 'ServiceScalingTarget'
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+        - ScalingAdjustment: -2
+          MetricIntervalUpperBound: 0
+
   ALB500sAlarmScaleUp:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -348,13 +364,45 @@ Resources:
       Threshold: '10'
       AlarmDescription: Alarm if our ALB generates too many HTTP 500s.
       Period: '60'
-      AlarmActions: [!Ref 'ServiceScalingPolicy']
+      AlarmActions: [!Ref 'ServiceScaleUp']
       Namespace: AWS/ApplicationELB
       Dimensions:
       - Name: ECSService
         Value: !Ref 'service'
       ComparisonOperator: GreaterThanThreshold
       MetricName: HTTPCode_ELB_5XX_Count
+  ALB200sAlarmScaleUp:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Sum
+      Threshold: '10'
+      AlarmDescription: Scale up if we get more than 10 hits in any one minute
+      Period: '60'
+      AlarmActions: [!Ref 'ServiceScaleUp']
+      Namespace: AWS/ApplicationELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ECSALB.LoadBalancerFullName
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: RequestCount
+  ALB200sAlarmScaleDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Sum
+      Threshold: '1'
+      AlarmDescription: Scale down if we less than 1 hits in any one minute
+      Period: '60'
+      AlarmActions: [!Ref 'ServiceScaleDown']
+      Namespace: AWS/ApplicationELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ECSALB.LoadBalancerFullName
+      ComparisonOperator: LessThanThreshold
+      MetricName: RequestCount
+
+
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
@@ -389,8 +437,12 @@ Resources:
         PolicyDocument:
           Statement:
           - Effect: Allow
-            Action: ['application-autoscaling:*', 'cloudwatch:DescribeAlarms', 'cloudwatch:PutMetricAlarm',
-              'ecs:DescribeServices', 'ecs:UpdateService']
+            Action: 
+              - 'application-autoscaling:*'
+              - 'cloudwatch:DescribeAlarms'
+              - 'cloudwatch:PutMetricAlarm'
+              - 'ecs:DescribeServices' 
+              - 'ecs:UpdateService'
             Resource: '*'
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
