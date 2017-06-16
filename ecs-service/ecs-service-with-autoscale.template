@@ -20,6 +20,14 @@ Parameters:
     Type: CommaDelimitedList
     Description: Select at two subnets in your selected VPC.
     Default: ""
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
   DesiredCapacity:
     Type: Number
     Default: '1'
@@ -63,7 +71,7 @@ Conditions:
   NoVpcParam: !Equals [ !Ref VpcId, "" ]
   NoKeyParam: !Equals [ !Ref KeyName, "" ]
   YesKeyParam: !Not [ !Equals [ !Ref KeyName, "" ] ]
-    
+
 Resources:
   VpcRouteTableAsscnTwo:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -71,14 +79,14 @@ Resources:
     Properties:
       RouteTableId: !Ref VpcRouteTable
       SubnetId: !Ref SubnetTwo
-  
+
   VpcRouteTableAsscnOne:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Condition: NoVpcParam
     Properties:
       RouteTableId: !Ref VpcRouteTable
       SubnetId: !Ref SubnetOne
-  
+
   VpcRouteTable:
     Type: AWS::EC2::RouteTable
     Condition: NoVpcParam
@@ -87,7 +95,7 @@ Resources:
   SubnetDefRoute:
     Type: AWS::EC2::Route
     Condition: NoVpcParam
-    DependsOn: 
+    DependsOn:
       - IGW
     Properties:
       DestinationCidrBlock: "0.0.0.0/0"
@@ -96,7 +104,7 @@ Resources:
   AttachIGW:
     Type: AWS::EC2::VPCGatewayAttachment
     Condition: NoVpcParam
-    DependsOn: 
+    DependsOn:
       - IGW
       - VPC
     Properties:
@@ -124,7 +132,7 @@ Resources:
       CidrBlock: 10.254.0.0/24
       AvailabilityZone:
         Fn::Select:
-          - 0 
+          - 0
           - Fn::GetAZs: ""
       VpcId: !Ref VPC
       MapPublicIpOnLaunch: !Ref PublicIps
@@ -136,7 +144,7 @@ Resources:
       VpcId: !Ref VPC
       AvailabilityZone:
         Fn::Select:
-          - 1 
+          - 1
           - Fn::GetAZs: ""
       MapPublicIpOnLaunch: !Ref PublicIps
   ECSCluster:
@@ -165,7 +173,7 @@ Resources:
       IpProtocol: tcp
       FromPort: '22'
       ToPort: '22'
-      CidrIp: 0.0.0.0/0
+      CidrIp: !Ref 'SSHLocation'
   EcsSecurityGroupALBports:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -253,10 +261,10 @@ Resources:
       VPCZoneIdentifier: !If [ NoVpcParam, [ !Ref SubnetOne, !Ref SubnetTwo], !Ref 'SubnetID' ]
       AvailabilityZones:
         - Fn::Select:
-            - 0 
+            - 0
             - Fn::GetAZs: ""
         - Fn::Select:
-            - 1 
+            - 1
             - Fn::GetAZs: ""
       LaunchConfigurationName: !Ref 'ContainerInstances'
       MinSize: '1'
@@ -465,7 +473,7 @@ Resources:
           Value: !Select [ 1, !Split [ '/', !Ref 'service' ]]
       MetricName: CPUUtilization
 
- 
+
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
@@ -500,11 +508,11 @@ Resources:
         PolicyDocument:
           Statement:
           - Effect: Allow
-            Action: 
+            Action:
               - 'application-autoscaling:*'
               - 'cloudwatch:DescribeAlarms'
               - 'cloudwatch:PutMetricAlarm'
-              - 'ecs:DescribeServices' 
+              - 'ecs:DescribeServices'
               - 'ecs:UpdateService'
             Resource: '*'
   EC2InstanceProfile:
